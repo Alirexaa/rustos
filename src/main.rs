@@ -4,13 +4,22 @@
 #![test_runner(rustos::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
-use rustos::{hlt_loop, println};
+use rustos::{
+    hlt_loop,
+    memory::{self},
+    println,
+};
+use x86_64::VirtAddr;
 
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
+entry_point!(kernel_main);
+
+fn kernel_main(boot_info: &'static BootInfo) -> ! {
     println!("Hello World{}", "!");
     rustos::init();
+    let physical_memory_offset = VirtAddr::new(boot_info.physical_memory_offset);
+    let _mapper = unsafe { memory::init(physical_memory_offset) };
 
     #[cfg(test)]
     test_main();
