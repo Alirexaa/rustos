@@ -9,9 +9,10 @@ extern crate alloc;
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use rustos::{
-    allocator, hlt_loop,
+    allocator,
     memory::{self, BootInfoFrameAllocator},
     println,
+    task::{executor::Executor, keyboard, Task},
 };
 use x86_64::VirtAddr;
 
@@ -25,17 +26,20 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
 
-    #[cfg(test)]
-    test_main();
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(keyboard::print_keypresses()));
 
-    println!("It did not crash!");
+    #[cfg(test)] // new
+    executor.spawn(Task::new(invoke_test_main()));
 
-    hlt_loop();
+    executor.run();
 }
 /// This function is called on panic.
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
+    use rustos::hlt_loop;
+
     println!("{}", info);
     hlt_loop();
 }
@@ -44,4 +48,9 @@ fn panic(info: &PanicInfo) -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     rustos::test_panic_handler(info)
+}
+
+#[cfg(test)]
+async fn invoke_test_main() {
+    test_main();
 }
